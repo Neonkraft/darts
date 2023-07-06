@@ -81,11 +81,11 @@ class SepConv(nn.Module):
 
   def forward(self, x):
     out1 = self.bn1(self.conv1_pointwise(self.conv1_depthwise(self.activation(x))))
-    out2 = self.bn2(self.conv2_pointwise(self.conv2_depthwise(self.activation(out1))))
+    out = self.bn2(self.conv2_pointwise(self.conv2_depthwise(self.activation(out1))))
 
     if self.use_lora is True:
       lora_out = self.lora_up(self.lora_down(x))
-      out = out2 + lora_out
+      out = out + lora_out
 
     return out
 
