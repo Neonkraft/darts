@@ -38,6 +38,8 @@ parser.add_argument('--save', type=str, default='EXP', help='experiment name')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
+parser.add_argument('--use_lora', action='store_true', default=False, help='use LoRA approximation')
+parser.add_argument('--lora_r', type=int, default=8, help='Rank of LoRA approximation')
 parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
@@ -75,7 +77,14 @@ def main():
 
   criterion = nn.CrossEntropyLoss()
   criterion = criterion.to(DEVICE)
-  model = Network(args.init_channels, CIFAR_CLASSES, args.layers, criterion)
+  model = Network(
+    args.init_channels,
+    CIFAR_CLASSES,
+    args.layers,
+    criterion,
+    use_lora=args.use_lora,
+    lora_r=args.lora_r
+  )
   model = model.to(DEVICE)
 
   logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
