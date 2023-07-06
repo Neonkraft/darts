@@ -2,18 +2,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from operations import *
-from torch.autograd import Variable
 from genotypes import PRIMITIVES
 from genotypes import Genotype
 
+DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 class MixedOp(nn.Module):
 
-  def __init__(self, C, stride):
+  def __init__(self, C, stride, use_lora, lora_r):
     super(MixedOp, self).__init__()
     self._ops = nn.ModuleList()
     for primitive in PRIMITIVES:
-      op = OPS[primitive](C, stride, False)
+      op = OPS[primitive](C, stride, False, use_lora, lora_r)
       if 'pool' in primitive:
         op = nn.Sequential(op, nn.BatchNorm2d(C, affine=False))
       self._ops.append(op)
@@ -24,7 +24,7 @@ class MixedOp(nn.Module):
 
 class Cell(nn.Module):
 
-  def __init__(self, steps, multiplier, C_prev_prev, C_prev, C, reduction, reduction_prev):
+  def __init__(self, steps, multiplier, C_prev_prev, C_prev, C, reduction, reduction_prev, use_lora, lora_r):
     super(Cell, self).__init__()
     self.reduction = reduction
 
@@ -41,7 +41,7 @@ class Cell(nn.Module):
     for i in range(self._steps):
       for j in range(2+i):
         stride = 2 if reduction and j < 2 else 1
-        op = MixedOp(C, stride)
+        op = MixedOp(C, stride, use_lora, lora_r)
         self._ops.append(op)
 
   def forward(self, s0, s1, weights):
@@ -60,7 +60,7 @@ class Cell(nn.Module):
 
 class Network(nn.Module):
 
-  def __init__(self, C, num_classes, layers, criterion, steps=4, multiplier=4, stem_multiplier=3):
+  def __init__(self, C, num_classes, layers, criterion, steps=4, multiplier=4, stem_multiplier=3, use_lora=False, lora_r=16):
     super(Network, self).__init__()
     self._C = C
     self._num_classes = num_classes
@@ -68,6 +68,8 @@ class Network(nn.Module):
     self._criterion = criterion
     self._steps = steps
     self._multiplier = multiplier
+    self.use_lora = use_lora
+    self.lora_r = lora_r
 
     C_curr = stem_multiplier*C
     self.stem = nn.Sequential(
@@ -84,7 +86,7 @@ class Network(nn.Module):
         reduction = True
       else:
         reduction = False
-      cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
+      cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev, use_lora, lora_r)
       reduction_prev = reduction
       self.cells += [cell]
       C_prev_prev, C_prev = C_prev, multiplier*C_curr
@@ -92,13 +94,27 @@ class Network(nn.Module):
     self.global_pooling = nn.AdaptiveAvgPool2d(1)
     self.classifier = nn.Linear(C_prev, num_classes)
 
+    self.classifier_lora_down = nn.Linear(C_prev, lora_r)
+    self.classifier_lora_up = nn.Linear(lora_r, num_classes)
+
     self._initialize_alphas()
 
   def new(self):
-    model_new = Network(self._C, self._num_classes, self._layers, self._criterion).cuda()
+    model_new = Network(self._C, self._num_classes, self._layers, self._criterion).to(DEVICE)
     for x, y in zip(model_new.arch_parameters(), self.arch_parameters()):
         x.data.copy_(y.data)
     return model_new
+
+  def get_non_lora_modules(model):
+      for name, module in model.named_modules():
+          if len(list(module.children())) == 0 and "lora" not in name:
+              yield module
+
+  def get_lora_modules(model):
+      for name, module in model.named_modules():
+        # print(name, "lora" in name, len(list(module.children())) == 0)
+        if (len(list(module.children())) == 0) and ("lora" in name):
+            yield module
 
   def forward(self, input):
     s0 = s1 = self.stem(input)
@@ -110,6 +126,12 @@ class Network(nn.Module):
       s0, s1 = s1, cell(s0, s1, weights)
     out = self.global_pooling(s1)
     logits = self.classifier(out.view(out.size(0),-1))
+
+    if self.use_lora:
+      logits += self.classifier_lora_up(
+          self.classifier_lora_down(out.view(out.size(0),-1))
+      )
+
     return logits
 
   def _loss(self, input, target):
@@ -120,8 +142,8 @@ class Network(nn.Module):
     k = sum(1 for i in range(self._steps) for n in range(2+i))
     num_ops = len(PRIMITIVES)
 
-    self.alphas_normal = Variable(1e-3*torch.randn(k, num_ops).cuda(), requires_grad=True)
-    self.alphas_reduce = Variable(1e-3*torch.randn(k, num_ops).cuda(), requires_grad=True)
+    self.alphas_normal = nn.Parameter(1e-3*torch.randn(k, num_ops).to(DEVICE))
+    self.alphas_reduce = nn.Parameter(1e-3*torch.randn(k, num_ops).to(DEVICE))
     self._arch_parameters = [
       self.alphas_normal,
       self.alphas_reduce,
