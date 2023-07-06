@@ -79,8 +79,11 @@ def _data_transforms_cifar10(args):
   return train_transform, valid_transform
 
 
-def count_parameters_in_MB(model):
-  return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
+def count_parameters_in_MB(model, requires_grad=False):
+  if requires_grad is True:
+    return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if ("auxiliary" not in name) and v.requires_grad)/1e6
+  else:
+    return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
 
 
 def save_checkpoint(state, is_best, save):
