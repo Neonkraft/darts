@@ -12,6 +12,7 @@ import torch.utils
 import torch.nn.functional as F
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
+import wandb
 
 from torch.autograd import Variable
 from model_search import Network
@@ -43,6 +44,7 @@ parser.add_argument('--lora_r', type=int, default=8, help='Rank of LoRA approxim
 parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
+parser.add_argument('--log_wandb', action='store_true', default=False, help='log experiment to wandb')
 args = parser.parse_args()
 
 args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -138,6 +140,13 @@ def main():
 
     utils.save(model, os.path.join(args.save, 'weights.pt'))
 
+    if args.log_wandb is True:
+      wandb.log({
+        "train_acc": train_acc,
+        "train_loss": train_obj,
+        "valid_acc": valid_acc,
+        "valid_loss": valid_obj,
+      })
 
 def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
   objs = utils.AvgrageMeter()
@@ -203,5 +212,9 @@ def infer(valid_queue, model, criterion):
 
 
 if __name__ == '__main__':
+  # Initialize wandb project
+  if args.log_wandb is True:
+    wandb.init(project="LoRA-DARTS", entity="nas-team-freiburg", config=args)
+
   main() 
 
