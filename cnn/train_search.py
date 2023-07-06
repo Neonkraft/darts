@@ -56,25 +56,28 @@ logging.getLogger().addHandler(fh)
 
 CIFAR_CLASSES = 10
 
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def main():
-  if not torch.cuda.is_available():
-    logging.info('no gpu device available')
-    sys.exit(1)
 
   np.random.seed(args.seed)
-  torch.cuda.set_device(args.gpu)
+
+  if torch.cuda.is_available():
+    torch.cuda.set_device(args.gpu)
+    torch.cuda.manual_seed(args.seed)
+
   cudnn.benchmark = True
   torch.manual_seed(args.seed)
   cudnn.enabled=True
-  torch.cuda.manual_seed(args.seed)
+
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
 
   criterion = nn.CrossEntropyLoss()
-  criterion = criterion.cuda()
+  criterion = criterion.to(DEVICE)
   model = Network(args.init_channels, CIFAR_CLASSES, args.layers, criterion)
-  model = model.cuda()
+  model = model.to(DEVICE)
+
   logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
   optimizer = torch.optim.SGD(
@@ -136,13 +139,13 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     model.train()
     n = input.size(0)
 
-    input = Variable(input, requires_grad=False).cuda()
-    target = Variable(target, requires_grad=False).cuda(async=True)
+    input = Variable(input, requires_grad=False).to(DEVICE)
+    target = Variable(target, requires_grad=False).to(DEVICE)
 
     # get a random minibatch from the search queue with replacement
     input_search, target_search = next(iter(valid_queue))
-    input_search = Variable(input_search, requires_grad=False).cuda()
-    target_search = Variable(target_search, requires_grad=False).cuda(async=True)
+    input_search = Variable(input_search, requires_grad=False).to(DEVICE)
+    target_search = Variable(target_search, requires_grad=False).to(DEVICE)
 
     architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
@@ -172,8 +175,8 @@ def infer(valid_queue, model, criterion):
   model.eval()
 
   for step, (input, target) in enumerate(valid_queue):
-    input = Variable(input, volatile=True).cuda()
-    target = Variable(target, volatile=True).cuda(async=True)
+    input = Variable(input, volatile=True).to(DEVICE)
+    target = Variable(target, volatile=True).to(DEVICE)
 
     logits = model(input)
     loss = criterion(logits, target)
