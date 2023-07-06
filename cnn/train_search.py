@@ -47,7 +47,8 @@ parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weigh
 parser.add_argument('--log_wandb', action='store_true', default=False, help='log experiment to wandb')
 args = parser.parse_args()
 
-args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+args.save = "{}/search-{}".format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
