@@ -105,16 +105,38 @@ class Network(nn.Module):
         x.data.copy_(y.data)
     return model_new
 
-  def get_non_lora_modules(model):
-      for name, module in model.named_modules():
+  def get_non_lora_modules(self):
+      for name, module in self.named_modules():
           if len(list(module.children())) == 0 and "lora" not in name:
               yield module
 
-  def get_lora_modules(model):
-      for name, module in model.named_modules():
+  def get_lora_modules(self):
+      for name, module in self.named_modules():
         # print(name, "lora" in name, len(list(module.children())) == 0)
         if (len(list(module.children())) == 0) and ("lora" in name):
             yield module
+
+  def _freeze_parameters(self, modules):
+      for module in modules:
+          for p in module.parameters():
+              p.requires_grad = False
+
+  def _unfreeze_parameters(self, modules):
+      for module in modules:
+          for p in module.parameters():
+              p.requires_grad = True
+
+  def freeze_non_lora_modules(self):
+      self._freeze_parameters(self.get_non_lora_modules())
+
+  def freeze_lora_modules(self):
+      self._freeze_parameters(self.get_lora_modules())
+
+  def unfreeze_non_lora_modules(self):
+      self._unfreeze_parameters(self.get_non_lora_modules())
+
+  def unfreeze_lora_modules(self):
+      self._unfreeze_parameters(self.get_lora_modules())
 
   def forward(self, input):
     s0 = s1 = self.stem(input)
