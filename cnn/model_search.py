@@ -126,6 +126,16 @@ class Network(nn.Module):
           for p in module.parameters():
               p.requires_grad = True
 
+  def get_lora_parameters(self):
+    for m in self.get_lora_modules():
+      for p in m.parameters():
+        yield p
+
+  def get_non_lora_parameters(self):
+    for m in self.get_non_lora_modules():
+      for p in m.parameters():
+        yield p
+
   def freeze_non_lora_modules(self):
       self._freeze_parameters(self.get_non_lora_modules())
 
