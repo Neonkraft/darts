@@ -44,10 +44,11 @@ parser.add_argument('--unrolled', action='store_true', default=False, help='use 
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
 parser.add_argument('--log_wandb', action='store_true', default=False, help='log experiment to wandb')
-parser.add_argument('--trained_supernet_path', type=str, default="./pretrained_supernets/weights_e0.pt", help='path to trained supernet')
+parser.add_argument('--trained_supernet_path', type=str, default="./pretrained_supernets/weights_e20.pt", help='path to trained supernet')
 args = parser.parse_args()
+args.is_lora_search = True
 
-args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+args.save = "{}/lora-search-{}".format(args.save, time.strftime("%Y%m%d-%H%M%S"))
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
@@ -225,4 +226,6 @@ if __name__ == '__main__':
     wandb.init(project="LoRA-DARTS", entity="nas-team-freiburg", config=args)
 
   main() 
+
+  print('Done.')
 
