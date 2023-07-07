@@ -102,7 +102,7 @@ def main():
   logging.info("params that require grad: %f", utils.count_parameters_in_MB(model, requires_grad=True))
 
   optimizer = torch.optim.SGD(
-      model.parameters(),
+      model.get_lora_parameters(),
       args.learning_rate,
       momentum=args.momentum,
       weight_decay=args.weight_decay)
