@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import datetime
 import glob
 import numpy as np
 import torch
@@ -48,7 +49,8 @@ parser.add_argument('--trained_supernet_path', type=str, default="./pretrained_s
 args = parser.parse_args()
 args.is_lora_search = True
 
-args.save = "{}/lora-search-{}".format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+args.save = "{}/lora-search-{}".format(args.save, datetime.datetime.now().strftime("%Y_%m_%d-%H-%M-%S_%f"))
+
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
